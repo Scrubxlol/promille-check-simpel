@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Promille Rechner – Stunden-Tabelle</title>
+  <title>Promille Rechner – Stunden-Tabelle + Prediction</title>
   <style>
     :root{ --bg:#0b0b0b;--card:#151515;--text:#f2f2f2;--muted:#a9a9a9;--primary:#0a84ff;--danger:#d32f2f;--row:#1e1e1e;--radius:14px; }
     @media (prefers-color-scheme: light){ :root{--bg:#f7f7f7;--card:#fff;--text:#111;--muted:#666;--row:#f3f3f3} }
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:16px}
-    .wrap{max-width:980px;margin:0 auto}
+    .wrap{max-width:1100px;margin:0 auto}
     h1{font-size:1.4rem;margin:4px 2px 12px}
     .card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.08);margin-bottom:12px}
     label{display:flex;align-items:center;gap:8px;margin:6px 8px 6px 0;flex-wrap:wrap}
@@ -29,17 +29,16 @@
     .hourhead{white-space:nowrap}
     .chips{display:flex;gap:6px;flex-wrap:wrap}
     .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent}
-    .sum{min-width:72px;text-align:right;font-variant-numeric:tabular-nums}
+    .sum,.bac{min-width:80px;text-align:right;font-variant-numeric:tabular-nums}
     .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border-radius:999px;padding:4px 8px;margin:4px 6px 0 0}
     .pill select{padding:4px 8px;border-radius:8px}
     .pill button{min-height:auto;padding:4px 8px;border-radius:8px}
-    /* Fehleranzeige */
     #err{position:fixed;left:8px;right:8px;bottom:8px;background:#400;padding:10px 12px;border:1px solid #f88;color:#fff;border-radius:10px;display:none;z-index:9999;font-size:14px;white-space:pre-wrap}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Promille Rechner – Stunden-Tabelle (Bier/Radler)</h1>
+    <h1>Promille Rechner – Stunden-Tabelle (Bier/Radler) + Prediction</h1>
 
     <div class="card grid">
       <label>Gewicht
@@ -75,6 +74,8 @@
             <th class="sum">Bier (L)</th>
             <th class="sum">Radler (L)</th>
             <th class="sum">Gramm Alkohol</th>
+            <th class="bac">Jetzt</th>
+            <th class="bac">Ende d. Stunde</th>
             <th>Einträge</th>
             <th></th>
           </tr>
@@ -87,7 +88,7 @@
   <div id="err"></div>
 
 <script>
-/* Fehleranzeige */
+/* Fehleranzeige (hilft bei GitHub Pages Debug) */
 window.addEventListener('error', e => {
   const el = document.getElementById('err');
   el.style.display='block';
@@ -105,13 +106,13 @@ const VOL_BIER   = 0.05;  // 5 %
 const VOL_RADLER = 0.025; // 2.5 %
 const R_M = 0.68, R_F = 0.55;
 const NF3 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:3,maximumFractionDigits:3});
+const NF2 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
 const NF1 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
 
 /* State + Persistenz */
-let model = { gewicht:70, geschlecht:'m', abbau:0.12, startMs:null, hours:[] };
-// restore
-try{ const saved = JSON.parse(localStorage.getItem('prs_hours_table')||'null'); if(saved && saved.hours) model = saved; }catch{}
-function save(){ localStorage.setItem('prs_hours_table', JSON.stringify(model)); }
+let model = { gewicht:70, geschlecht:'m', abbau:0.12, startMs:null, hours:[] }; // hours: [{startMs,drinks:[{id,ty,volL}]}]
+try{ const saved = JSON.parse(localStorage.getItem('prs_hours_table_predict')||'null'); if(saved && saved.hours) model = saved; }catch{}
+function save(){ localStorage.setItem('prs_hours_table_predict', JSON.stringify(model)); }
 
 /* Stundenaufbau */
 function ensureStart(){ if(!model.startMs){ model.startMs = floorToHourLocal(); } }
@@ -120,7 +121,7 @@ function buildHoursUntilNow(){
   const hours=[]; let cur = model.startMs; const now = Date.now();
   while (cur <= now){
     const existing = model.hours.find(h => h.startMs === cur);
-    hours.push(existing || { startMs:cur, drinks:[] }); // drinks: [{id,ty:'bier'|'radler', volL:0.3|0.4|0.5}]
+    hours.push(existing || { startMs:cur, drinks:[] });
     const d = new Date(cur); d.setHours(d.getHours()+1,0,0,0); cur = d.getTime();
   }
   model.hours = hours; save();
@@ -133,6 +134,51 @@ function sumsForHour(h){
   (h.drinks||[]).forEach(d => { if(d.ty==='bier') bier+=d.volL; else radler+=d.volL; });
   const grams = alkoholGramm(bier, VOL_BIER) + alkoholGramm(radler, VOL_RADLER);
   return {bier, radler, grams};
+}
+
+/* BAC-Serie: für jede Stunde (vergangen/aktuell/zukünftig) den Wert am Ende der Stunde
+   plus für die aktuelle Stunde zusätzlich den Live-Wert „jetzt“. */
+function computeBACSeries(){
+  const kg = model.gewicht||70;
+  const r  = model.geschlecht==='w'? R_F : R_M;
+  const ab = model.abbau||0.12; // ‰/h
+  const now = Date.now();
+
+  let prom = 0; // Start-Promille vor erster Stunde
+  const rows = [];
+
+  for (let i=0;i<model.hours.length;i++){
+    const h = model.hours[i];
+    const start = h.startMs;
+    const end   = new Date(start).setHours(new Date(start).getHours()+1);
+
+    // Intake der Stunde
+    const {bier,radler,grams} = sumsForHour(h);
+    prom += grams / (kg * r);
+
+    if (now >= end){
+      // Vergangenheit: tatsächlicher Endwert
+      prom = Math.max(0, prom - ab);
+      rows.push({ idx:i, now:null, end:prom, past:true });
+      continue;
+    }
+
+    if (now >= start && now < end){
+      const frac = (now - start)/3600000;
+      const nowVal = Math.max(0, prom - ab*frac);
+      const endVal = Math.max(0, prom - ab);      // Prognose: Ende dieser Stunde
+      rows.push({ idx:i, now:nowVal, end:endVal, past:false, current:true });
+      // Für weitere (zukünftige) Stunden nehmen wir als Ausgangsbasis den prognostizierten Endwert
+      prom = endVal;
+      continue;
+    }
+
+    // Zukunft: Prognose Ende der Stunde
+    const endVal = Math.max(0, prom - ab);
+    rows.push({ idx:i, now:null, end:endVal, past:false, future:true });
+    prom = endVal;
+  }
+  return rows;
 }
 
 /* DOM refs */
@@ -151,7 +197,7 @@ elSex.addEventListener('change', ()=>{ model.geschlecht = elSex.value; save(); r
 elAbbau.addEventListener('change', ()=>{ model.abbau = clamp(+elAbbau.value,0.05,0.2); save(); recalc(); });
 elStart.addEventListener('change', ()=>{ model.startMs = fromDatetimeLocalValue(elStart.value); save(); buildHoursUntilNow(); renderTable(); recalc(); });
 document.getElementById('addHour').addEventListener('click', ()=>{ addHourAtEnd(); renderTable(); recalc(); });
-document.getElementById('resetData').addEventListener('click', ()=>{ if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_table'); location.reload(); } });
+document.getElementById('resetData').addEventListener('click', ()=>{ if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_table_predict'); location.reload(); } });
 
 /* Event-Delegation für dynamische Buttons/Selects */
 elBody.addEventListener('click', (e)=>{
@@ -161,7 +207,7 @@ elBody.addEventListener('click', (e)=>{
   if(btn.dataset.add){ // + Getränk
     const i = +btn.dataset.i; const ty = btn.dataset.add; const vol = parseFloat(btn.dataset.vol);
     const h = model.hours[i]; if(!h) return;
-    h.drinks.push({ id: cryptoRandom(), ty, volL: vol });
+    h.drinks.push({ id: uid(), ty, volL: vol });
     save(); refreshRow(i); recalc(); return;
   }
   if(btn.dataset.del){ // Eintrag löschen
@@ -188,9 +234,11 @@ elBody.addEventListener('change', (e)=>{
 /* Render */
 function renderTable(){
   elBody.innerHTML='';
+  const series = computeBACSeries(); // für Prediction-Spalten
   model.hours.forEach((h, idx)=>{
     const d = new Date(h.startMs);
     const {bier,radler,grams} = sumsForHour(h);
+    const sRow = series.find(r => r.idx===idx) || {now:null,end:null};
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -212,6 +260,8 @@ function renderTable(){
       <td class="sum" id="sb${idx}">${bier.toFixed(1).replace('.',',')}</td>
       <td class="sum" id="sr${idx}">${radler.toFixed(1).replace('.',',')}</td>
       <td class="sum" id="sg${idx}">${NF1.format(grams)}</td>
+      <td class="bac" id="bnow${idx}">${sRow.now!=null ? NF2.format(sRow.now)+'‰' : '–'}</td>
+      <td class="bac" id="bend${idx}">${sRow.end!=null ? NF2.format(sRow.end)+'‰' : '–'}</td>
       <td id="list${idx}"></td>
       <td><button class="btn-ghost" data-delh="${idx}" type="button">Stunde löschen</button></td>
     `;
@@ -247,10 +297,18 @@ function refreshRow(i){
   if(sb) sb.textContent = bier.toFixed(1).replace('.',',');
   if(sr) sr.textContent = radler.toFixed(1).replace('.',',');
   if(sg) sg.textContent = NF1.format(grams);
+
+  // BAC cells aktualisieren
+  const sRow = computeBACSeries().find(r => r.idx===i);
+  const bnow = document.getElementById('bnow'+i);
+  const bend = document.getElementById('bend'+i);
+  if(bnow) bnow.textContent = sRow && sRow.now!=null ? NF2.format(sRow.now)+'‰' : '–';
+  if(bend) bend.textContent = sRow && sRow.end!=null ? NF2.format(sRow.end)+'‰' : '–';
+
   renderPills(i);
 }
 
-/* Stunden-Tools */
+/* Stunde anhängen */
 function addHourAtEnd(){
   const last = model.hours[model.hours.length-1];
   const base = last ? last.startMs : model.startMs;
@@ -259,7 +317,7 @@ function addHourAtEnd(){
   save();
 }
 
-/* Berechnung: Widmark + linearer Abbau (anteilig in aktueller Stunde) */
+/* Live-BAC (separat für Header) */
 function computeBACNow(){
   const kg = model.gewicht||70;
   const r  = model.geschlecht==='w'? R_F : R_M;
@@ -269,20 +327,19 @@ function computeBACNow(){
 
   for(let i=0;i<model.hours.length;i++){
     const h = model.hours[i];
-    const slotStart = h.startMs;
-    const slotEnd   = new Date(slotStart).setHours(new Date(slotStart).getHours()+1);
-    // Zufluss dieser Stunde (als Ganzes)
+    const start = h.startMs;
+    const end   = new Date(start).setHours(new Date(start).getHours()+1);
     const {bier,radler} = sumsForHour(h);
     const grams = alkoholGramm(bier, VOL_BIER) + alkoholGramm(radler, VOL_RADLER);
     prom += grams / (kg * r);
 
-    if (now >= slotStart && now < slotEnd){
-      const frac = (now - slotStart) / 3600000; // Anteil der Stunde
-      prom = Math.max(0, prom - ab * frac);
-      break; // spätere Stunden ignorieren
+    if (now >= start && now < end){
+      const frac = (now - start)/3600000;
+      prom = Math.max(0, prom - ab*frac);
+      break;
     }
-    if (now >= slotEnd){
-      prom = Math.max(0, prom - ab); // volle Stunde abgebaut
+    if (now >= end){
+      prom = Math.max(0, prom - ab);
     }
   }
   return Math.max(0, prom);
@@ -303,27 +360,22 @@ function recalc(){
   const eta05 = p>0.5? (p-0.5)/ab : null;
   const eta00 = p/ab;
   elEta.textContent = `Unter 0,5‰ in ${eta05!==null? NF1.format(eta05)+' h' : '–'} · 0,0‰ in ${NF1.format(eta00)} h`;
+
+  // ganze Tabelle neu (damit Prediction-Zellen mitlaufen)
+  renderTable();
 }
 
 /* Utils */
 function clamp(v,min,max){ return isFinite(v)? Math.max(min,Math.min(max,v)) : min; }
-function cryptoRandom(){ // kurze eindeutige id
-  if (crypto?.randomUUID) return crypto.randomUUID();
-  return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+function uid(){ return (crypto?.randomUUID?.() || ('id-'+Math.random().toString(36).slice(2)+Date.now().toString(36))); }
 
 /* Init */
 (function init(){
   ensureStart();
-  // Für deinen Usecase: z. B. Start um 19:00 Uhr leicht setzen
-  // (kannst du beliebig ändern; Default ist jetzige volle Stunde)
-  // model.startMs = floorToHourLocal(new Date()); // <- optional
-
   buildHoursUntilNow();
   renderTable();
   recalc();
-  // Jede Minute anteilige Abbau-Progression + neue Stunde ergänzen
-  setInterval(()=>{ buildHoursUntilNow(); renderTable(); recalc(); }, 60000);
+  setInterval(()=>{ buildHoursUntilNow(); recalc(); }, 60000); // minütlich: Progress/Prediction aktualisieren
 })();
 </script>
 </body>
