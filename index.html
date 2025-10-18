@@ -36,6 +36,9 @@
     .chips{display:flex;gap:6px;flex-wrap:wrap}
     .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent}
     .sum{min-width:72px;text-align:right;font-variant-numeric:tabular-nums}
+
+    /* On-screen error banner */
+    #err{position:fixed;left:8px;right:8px;bottom:8px;background:#400;padding:10px 12px;border:1px solid #f88;color:#fff;border-radius:10px;display:none;z-index:9999;font-size:14px;white-space:pre-wrap}
   </style>
 </head>
 <body>
@@ -64,8 +67,8 @@
     <div class="card">
       <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
         <b>Stunden-Übersicht</b>
-        <button class="btn-ghost" id="addHour">+ Stunde hinzufügen</button>
-        <button class="btn-ghost" id="resetData">Alles löschen</button>
+        <button class="btn-ghost" id="addHour" type="button">+ Stunde hinzufügen</button>
+        <button class="btn-ghost" id="resetData" type="button">Alles löschen</button>
       </div>
       <table>
         <thead>
@@ -84,8 +87,17 @@
     </div>
   </div>
 
+  <div id="err"></div>
+
 <script>
-/***** Zeit-Helfer auf lokale Zeit *****/
+/* Global error surface */
+window.addEventListener('error', e => {
+  const el = document.getElementById('err');
+  el.style.display='block';
+  el.textContent = 'JS-Fehler: ' + (e.message||'') + '\n' + (e.filename||'') + ':' + (e.lineno||'') + ':' + (e.colno||'');
+});
+
+/***** Zeit-Helfer (lokal) *****/
 function floorToHourLocal(d = new Date()){
   const x = new Date(d); x.setMinutes(0,0,0); return x.getTime();
 }
@@ -142,13 +154,13 @@ const elProm = document.getElementById('anzeige');
 const elEta  = document.getElementById('eta');
 const elWarn = document.getElementById('warn');
 
-elGew.onchange = () => { model.gewicht = clamp(+elGew.value,40,200); save(); recalc(); };
-elSex.onchange = () => { model.geschlecht = elSex.value; save(); recalc(); };
-elAbbau.onchange = () => { model.abbau = clamp(+elAbbau.value,0.05,0.2); save(); recalc(); };
-elStart.onchange = () => { model.startMs = fromDatetimeLocalValue(elStart.value); save(); buildHoursUntilNow(); recalc(); };
+elGew.addEventListener('change', () => { model.gewicht = clamp(+elGew.value,40,200); save(); recalc(); });
+elSex.addEventListener('change', () => { model.geschlecht = elSex.value; save(); recalc(); });
+elAbbau.addEventListener('change', () => { model.abbau = clamp(+elAbbau.value,0.05,0.2); save(); recalc(); });
+elStart.addEventListener('change', () => { model.startMs = fromDatetimeLocalValue(elStart.value); save(); buildHoursUntilNow(); renderHoursTable(); recalc(); });
 
-document.getElementById('addHour').onclick = () => { addHourAtEnd(); renderHoursTable(); recalc(); };
-document.getElementById('resetData').onclick = () => { if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_overview'); location.reload(); } };
+document.getElementById('addHour').addEventListener('click', () => { addHourAtEnd(); renderHoursTable(); recalc(); });
+document.getElementById('resetData').addEventListener('click', () => { if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_overview'); location.reload(); } });
 
 function clamp(v,min,max){ return isFinite(v)? Math.max(min,Math.min(max,v)) : min; }
 
@@ -157,54 +169,61 @@ function renderHoursTable(){
   elBody.innerHTML='';
   model.hours.forEach((h, idx) => {
     const d = new Date(h.startMs);
-    const tr = document.createElement('tr');
-
     const grams = alkoholGramm(h.sumBierL||0, VOL_BIER) + alkoholGramm(h.sumRadlerL||0, VOL_RADLER);
 
+    const tr = document.createElement('tr');
     tr.innerHTML = \`
       <td class="hourhead">\${d.toLocaleString('de-DE',{weekday:'short', hour:'2-digit'})} Uhr</td>
       <td>
         <div class="chips">
-          <button class="chip" data-add="bier" data-vol="0.3" data-i="\${idx}">+ 0,3 L</button>
-          <button class="chip" data-add="bier" data-vol="0.4" data-i="\${idx}">+ 0,4 L</button>
-          <button class="chip" data-add="bier" data-vol="0.5" data-i="\${idx}">+ 0,5 L</button>
+          <button class="chip" data-add="bier" data-vol="0.3" data-i="\${idx}" type="button">+ 0,3 L</button>
+          <button class="chip" data-add="bier" data-vol="0.4" data-i="\${idx}" type="button">+ 0,4 L</button>
+          <button class="chip" data-add="bier" data-vol="0.5" data-i="\${idx}" type="button">+ 0,5 L</button>
         </div>
       </td>
       <td>
         <div class="chips">
-          <button class="chip" data-add="radler" data-vol="0.3" data-i="\${idx}">+ 0,3 L</button>
-          <button class="chip" data-add="radler" data-vol="0.4" data-i="\${idx}">+ 0,4 L</button>
-          <button class="chip" data-add="radler" data-vol="0.5" data-i="\${idx}">+ 0,5 L</button>
+          <button class="chip" data-add="radler" data-vol="0.3" data-i="\${idx}" type="button">+ 0,3 L</button>
+          <button class="chip" data-add="radler" data-vol="0.4" data-i="\${idx}" type="button">+ 0,4 L</button>
+          <button class="chip" data-add="radler" data-vol="0.5" data-i="\${idx}" type="button">+ 0,5 L</button>
         </div>
       </td>
       <td class="sum" id="sb\${idx}">\${(h.sumBierL||0).toFixed(1).replace('.',',')}</td>
       <td class="sum" id="sr\${idx}">\${(h.sumRadlerL||0).toFixed(1).replace('.',',')}</td>
       <td class="sum">\${NF1.format(grams)}</td>
-      <td><button class="btn-ghost" data-delh="\${idx}">Stunde löschen</button></td>
+      <td><button class="btn-ghost" data-delh="\${idx}" type="button">Stunde löschen</button></td>
     \`;
-
     elBody.appendChild(tr);
   });
-
-  // Delegation: Add-Buttons
-  elBody.querySelectorAll('[data-add]').forEach(btn => {
-    btn.onclick = () => {
-      const i = +btn.dataset.i; const ty = btn.dataset.add; const vol = parseFloat(btn.dataset.vol);
-      const h = model.hours[i];
-      h.drinks.push({ty, volL:vol});
-      if(ty==='bier') h.sumBierL = (h.sumBierL||0) + vol; else h.sumRadlerL = (h.sumRadlerL||0) + vol;
-      save();
-      document.getElementById('sb'+i).textContent = (h.sumBierL||0).toFixed(1).replace('.',',');
-      document.getElementById('sr'+i).textContent = (h.sumRadlerL||0).toFixed(1).replace('.',',');
-      recalc();
-    };
-  });
-
-  // Delegation: Stunde löschen
-  elBody.querySelectorAll('[data-delh]').forEach(btn => {
-    btn.onclick = () => { const i = +btn.dataset.delh; model.hours.splice(i,1); save(); renderHoursTable(); recalc(); };
-  });
 }
+
+/* Single delegated handler for all dynamic buttons */
+elBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  if(btn.dataset.add){
+    const i = +btn.dataset.i; const ty = btn.dataset.add; const vol = parseFloat(btn.dataset.vol);
+    const h = model.hours[i]; if(!h) return;
+    h.drinks.push({ty, volL:vol});
+    if(ty==='bier') h.sumBierL = (h.sumBierL||0) + vol; else h.sumRadlerL = (h.sumRadlerL||0) + vol;
+    save();
+    // minimal refresh for the row cells
+    const row = elBody.children[i];
+    if(row){
+      row.querySelector('#sb'+i).textContent = (h.sumBierL||0).toFixed(1).replace('.',',');
+      row.querySelector('#sr'+i).textContent = (h.sumRadlerL||0).toFixed(1).replace('.',',');
+    }else{
+      renderHoursTable();
+    }
+    recalc();
+  }else if(btn.dataset.delh){
+    const i = +btn.dataset.delh;
+    model.hours.splice(i,1);
+    save();
+    renderHoursTable();
+    recalc();
+  }
+});
 
 /***** Stunde anhängen *****/
 function addHourAtEnd(){
@@ -261,7 +280,7 @@ function recalc(){
   elEta.textContent = \`Unter 0,5‰ in \${eta05!==null? NF1.format(eta05)+' h' : '–'} · 0,0‰ in \${NF1.format(eta00)} h\`;
 }
 
-/***** PWA: Service Worker *****/
+/***** PWA: Service Worker (optional) *****/
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
