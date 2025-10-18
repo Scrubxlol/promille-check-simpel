@@ -37,8 +37,8 @@
     .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent}
     .sum{min-width:72px;text-align:right;font-variant-numeric:tabular-nums}
 
-    /* On-screen error banner */
     #err{position:fixed;left:8px;right:8px;bottom:8px;background:#400;padding:10px 12px;border:1px solid #f88;color:#fff;border-radius:10px;display:none;z-index:9999;font-size:14px;white-space:pre-wrap}
+    #updateToast{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;background:#0a84ff;color:#fff;padding:10px 14px;border-radius:12px;display:none;z-index:9999}
   </style>
 </head>
 <body>
@@ -88,8 +88,16 @@
   </div>
 
   <div id="err"></div>
+  <div id="updateToast">Neue Version installiert. Seite neu laden…</div>
 
 <script>
+/* SW update toast */
+navigator.serviceWorker?.addEventListener('controllerchange', () => {
+  const t = document.getElementById('updateToast');
+  t.style.display = 'block';
+  setTimeout(() => location.reload(), 800);
+});
+
 /* Global error surface */
 window.addEventListener('error', e => {
   const el = document.getElementById('err');
@@ -207,7 +215,6 @@ elBody.addEventListener('click', (e) => {
     h.drinks.push({ty, volL:vol});
     if(ty==='bier') h.sumBierL = (h.sumBierL||0) + vol; else h.sumRadlerL = (h.sumRadlerL||0) + vol;
     save();
-    // minimal refresh for the row cells
     const row = elBody.children[i];
     if(row){
       row.querySelector('#sb'+i).textContent = (h.sumBierL||0).toFixed(1).replace('.',',');
@@ -280,7 +287,7 @@ function recalc(){
   elEta.textContent = \`Unter 0,5‰ in \${eta05!==null? NF1.format(eta05)+' h' : '–'} · 0,0‰ in \${NF1.format(eta00)} h\`;
 }
 
-/***** PWA: Service Worker (optional) *****/
+/***** PWA: Service Worker *****/
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
