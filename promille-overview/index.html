@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Promille Rechner – Stunden-Übersicht</title>
+  <meta name="theme-color" content="#0a84ff">
+  <link rel="icon" href="assets/icon-192.png" sizes="192x192">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root{ --bg:#0b0b0b;--card:#151515;--text:#f2f2f2;--muted:#a9a9a9;--primary:#0a84ff;--danger:#d32f2f;--row:#1e1e1e;--radius:14px; }
+    @media (prefers-color-scheme: light){ :root{--bg:#f7f7f7;--card:#fff;--text:#111;--muted:#666;--row:#f1f1f1} }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:16px}
+    .wrap{max-width:980px;margin:0 auto}
+    h1{font-size:1.4rem;margin:6px 2px 14px}
+    .card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.08);margin-bottom:12px}
+    label{display:flex;align-items:center;gap:8px;margin:6px 8px 6px 0;flex-wrap:wrap}
+    input,select,button{font-size:1rem;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:#111;color:var(--text)}
+    @media (prefers-color-scheme: light){input,select,button{background:#fff;color:var(--text);border:1px solid rgba(0,0,0,.14)}}
+    button{cursor:pointer;min-height:40px}
+    .btn{background:var(--primary);color:#fff;border:none}
+    .btn-ghost{background:transparent;color:var(--text)}
+    .btn-danger{background:var(--danger);color:#fff;border:none}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+    .muted{color:var(--muted)}
+    .prom{font-size:1.8rem;font-weight:800;margin:10px 2px 6px}
+    .warn{background:#8b1c1c;color:#fff;padding:10px;border-radius:12px;margin:8px 0;display:none}
+
+    table{width:100%;border-collapse:separate;border-spacing:0 6px}
+    thead th{font-weight:600;text-align:left;padding:8px;opacity:.85}
+    tbody tr{background:var(--row);border-radius:12px}
+    tbody td{padding:8px 10px;vertical-align:middle}
+    .hourhead{white-space:nowrap}
+    .chips{display:flex;gap:6px;flex-wrap:wrap}
+    .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent}
+    .sum{min-width:72px;text-align:right;font-variant-numeric:tabular-nums}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Promille Rechner – Stunden-Übersicht (Bier/Radler)</h1>
+
+    <div class="card grid">
+      <label>Gewicht
+        <input aria-label="Gewicht in kg" type="number" id="gewicht" min="40" max="200" value="70" style="width:120px"> kg
+      </label>
+      <label>Geschlecht
+        <select id="geschlecht"><option value="m">männlich</option><option value="w">weiblich</option></select>
+      </label>
+      <label>Abbau pro Stunde
+        <input aria-label="Abbaurate in Promille pro Stunde" type="number" id="abbau" step="0.01" min="0.05" max="0.2" value="0.12" style="width:120px"> ‰/h
+      </label>
+      <label>Startzeit
+        <input type="datetime-local" id="start" />
+      </label>
+    </div>
+
+    <div class="prom" id="anzeige">Aktuelle Promille: 0,000‰</div>
+    <div class="muted" id="eta"></div>
+    <div id="warn" class="warn">Achtung: Über 0,5‰ – nicht fahren!</div>
+
+    <div class="card">
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <b>Stunden-Übersicht</b>
+        <button class="btn-ghost" id="addHour">+ Stunde hinzufügen</button>
+        <button class="btn-ghost" id="resetData">Alles löschen</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Stunde</th>
+            <th>Bier hinzufügen</th>
+            <th>Radler hinzufügen</th>
+            <th class="sum">Bier (L)</th>
+            <th class="sum">Radler (L)</th>
+            <th class="sum">Gramm Alkohol</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+/***** Zeit-Helfer auf lokale Zeit *****/
+function floorToHourLocal(d = new Date()){
+  const x = new Date(d); x.setMinutes(0,0,0); return x.getTime();
+}
+function toDatetimeLocalValue(ms){
+  const d = new Date(ms), pad = n => String(n).padStart(2,'0');
+  return \`\${d.getFullYear()}-\${pad(d.getMonth()+1)}-\${pad(d.getDate())}T\${pad(d.getHours())}:\${pad(d.getMinutes())}\`;
+}
+function fromDatetimeLocalValue(val){
+  const [YMD, HM] = val.split('T'); const [y,m,dd] = YMD.split('-').map(Number); const [h,mm] = HM.split(':').map(Number);
+  return new Date(y, m-1, dd, h, mm, 0, 0).getTime();
+}
+
+/***** Konstanten *****/
+const DICHTE_ALK = 0.789; // g/cm³
+const VOL_BIER   = 0.05;  // 5%
+const VOL_RADLER = 0.025; // 2.5%
+const R_M = 0.68, R_F = 0.55; // Widmark r
+const NF3 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:3,maximumFractionDigits:3});
+const NF1 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
+
+/***** State + Persistenz *****/
+let model = {
+  gewicht: 70,
+  geschlecht: 'm',
+  abbau: 0.12,
+  startMs: null,
+  hours: [] // [{ startMs, drinks:[{ty:'bier'|'radler', volL:number}], sumBierL:number, sumRadlerL:number }]
+};
+try{ const saved = JSON.parse(localStorage.getItem('prs_hours_overview')||'null'); if(saved && saved.hours) model = saved; }catch{}
+
+function save(){ localStorage.setItem('prs_hours_overview', JSON.stringify(model)); }
+function ensureStart(){ if(!model.startMs){ model.startMs = floorToHourLocal(); } }
+function alkoholGramm(liter, vol){ return liter * vol * 1000 * DICHTE_ALK; }
+
+/***** Stundenaufbau *****/
+function buildHoursUntilNow(){
+  ensureStart();
+  const hours=[]; let cur = model.startMs; const now = Date.now();
+  while (cur <= now){
+    const existing = model.hours.find(h => h.startMs === cur);
+    hours.push(existing || { startMs:cur, drinks:[], sumBierL:0, sumRadlerL:0 });
+    const d = new Date(cur); d.setHours(d.getHours()+1,0,0,0); cur = d.getTime();
+  }
+  model.hours = hours; save();
+}
+
+/***** DOM *****/
+const elGew = document.getElementById('gewicht');
+const elSex = document.getElementById('geschlecht');
+const elAbbau = document.getElementById('abbau');
+const elStart = document.getElementById('start');
+const elBody = document.getElementById('tbody');
+const elProm = document.getElementById('anzeige');
+const elEta  = document.getElementById('eta');
+const elWarn = document.getElementById('warn');
+
+elGew.onchange = () => { model.gewicht = clamp(+elGew.value,40,200); save(); recalc(); };
+elSex.onchange = () => { model.geschlecht = elSex.value; save(); recalc(); };
+elAbbau.onchange = () => { model.abbau = clamp(+elAbbau.value,0.05,0.2); save(); recalc(); };
+elStart.onchange = () => { model.startMs = fromDatetimeLocalValue(elStart.value); save(); buildHoursUntilNow(); recalc(); };
+
+document.getElementById('addHour').onclick = () => { addHourAtEnd(); renderHoursTable(); recalc(); };
+document.getElementById('resetData').onclick = () => { if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_overview'); location.reload(); } };
+
+function clamp(v,min,max){ return isFinite(v)? Math.max(min,Math.min(max,v)) : min; }
+
+/***** Tabelle rendern *****/
+function renderHoursTable(){
+  elBody.innerHTML='';
+  model.hours.forEach((h, idx) => {
+    const d = new Date(h.startMs);
+    const tr = document.createElement('tr');
+
+    const grams = alkoholGramm(h.sumBierL||0, VOL_BIER) + alkoholGramm(h.sumRadlerL||0, VOL_RADLER);
+
+    tr.innerHTML = \`
+      <td class="hourhead">\${d.toLocaleString('de-DE',{weekday:'short', hour:'2-digit'})} Uhr</td>
+      <td>
+        <div class="chips">
+          <button class="chip" data-add="bier" data-vol="0.3" data-i="\${idx}">+ 0,3 L</button>
+          <button class="chip" data-add="bier" data-vol="0.4" data-i="\${idx}">+ 0,4 L</button>
+          <button class="chip" data-add="bier" data-vol="0.5" data-i="\${idx}">+ 0,5 L</button>
+        </div>
+      </td>
+      <td>
+        <div class="chips">
+          <button class="chip" data-add="radler" data-vol="0.3" data-i="\${idx}">+ 0,3 L</button>
+          <button class="chip" data-add="radler" data-vol="0.4" data-i="\${idx}">+ 0,4 L</button>
+          <button class="chip" data-add="radler" data-vol="0.5" data-i="\${idx}">+ 0,5 L</button>
+        </div>
+      </td>
+      <td class="sum" id="sb\${idx}">\${(h.sumBierL||0).toFixed(1).replace('.',',')}</td>
+      <td class="sum" id="sr\${idx}">\${(h.sumRadlerL||0).toFixed(1).replace('.',',')}</td>
+      <td class="sum">\${NF1.format(grams)}</td>
+      <td><button class="btn-ghost" data-delh="\${idx}">Stunde löschen</button></td>
+    \`;
+
+    elBody.appendChild(tr);
+  });
+
+  // Delegation: Add-Buttons
+  elBody.querySelectorAll('[data-add]').forEach(btn => {
+    btn.onclick = () => {
+      const i = +btn.dataset.i; const ty = btn.dataset.add; const vol = parseFloat(btn.dataset.vol);
+      const h = model.hours[i];
+      h.drinks.push({ty, volL:vol});
+      if(ty==='bier') h.sumBierL = (h.sumBierL||0) + vol; else h.sumRadlerL = (h.sumRadlerL||0) + vol;
+      save();
+      document.getElementById('sb'+i).textContent = (h.sumBierL||0).toFixed(1).replace('.',',');
+      document.getElementById('sr'+i).textContent = (h.sumRadlerL||0).toFixed(1).replace('.',',');
+      recalc();
+    };
+  });
+
+  // Delegation: Stunde löschen
+  elBody.querySelectorAll('[data-delh]').forEach(btn => {
+    btn.onclick = () => { const i = +btn.dataset.delh; model.hours.splice(i,1); save(); renderHoursTable(); recalc(); };
+  });
+}
+
+/***** Stunde anhängen *****/
+function addHourAtEnd(){
+  const last = model.hours[model.hours.length-1];
+  const base = last ? last.startMs : model.startMs;
+  const d = new Date(base); d.setHours(d.getHours()+1,0,0,0);
+  model.hours.push({ startMs:d.getTime(), drinks:[], sumBierL:0, sumRadlerL:0 });
+  save();
+}
+
+/***** Kernberechnung *****/
+function computeBACNow(){
+  const kg = model.gewicht||70;
+  const r  = model.geschlecht==='w'? R_F : R_M;
+  const ab = model.abbau||0.12; // ‰/h
+
+  const now = Date.now();
+  let prom = 0;
+
+  for(let i=0;i<model.hours.length;i++){
+    const h = model.hours[i];
+    const slotStart = h.startMs;
+    const slotEnd   = new Date(slotStart).setHours(new Date(slotStart).getHours()+1);
+
+    const grams = alkoholGramm(h.sumBierL||0, VOL_BIER) + alkoholGramm(h.sumRadlerL||0, VOL_RADLER);
+    prom += grams / (kg * r); // Zufluss dieser Stunde
+
+    if (now >= slotStart && now < slotEnd){
+      const frac = (now - slotStart) / 3600000; // Anteil der Stunde
+      prom = Math.max(0, prom - ab * frac);
+      break; // spätere Stunden ignorieren
+    }
+    if (now >= slotEnd){
+      prom = Math.max(0, prom - ab); // volle Stunde abgebaut
+    }
+  }
+  return Math.max(0, prom);
+}
+
+/***** Anzeige *****/
+function recalc(){
+  document.getElementById('gewicht').value = model.gewicht;
+  document.getElementById('geschlecht').value = model.geschlecht;
+  document.getElementById('abbau').value = model.abbau;
+  document.getElementById('start').value = toDatetimeLocalValue(model.startMs);
+
+  const p = computeBACNow();
+  elProm.textContent = \`Aktuelle Promille: \${NF3.format(p)}‰\`;
+  elWarn.style.display = p >= 0.5 ? 'block' : 'none';
+
+  const ab = model.abbau||0.12;
+  const eta05 = p>0.5? (p-0.5)/ab : null;
+  const eta00 = p/ab;
+  elEta.textContent = \`Unter 0,5‰ in \${eta05!==null? NF1.format(eta05)+' h' : '–'} · 0,0‰ in \${NF1.format(eta00)} h\`;
+}
+
+/***** PWA: Service Worker *****/
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+/***** Init *****/
+(function init(){
+  ensureStart();
+  buildHoursUntilNow();
+  renderHoursTable();
+  recalc();
+  setInterval(()=>{ buildHoursUntilNow(); renderHoursTable(); recalc(); }, 60000);
+})();
+</script>
+</body>
+</html>
