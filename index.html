@@ -5,40 +5,124 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Promille Rechner – Stunden-Tabelle + Prediction</title>
   <style>
-    :root{ --bg:#0b0b0b;--card:#151515;--text:#f2f2f2;--muted:#a9a9a9;--primary:#0a84ff;--danger:#d32f2f;--row:#1e1e1e;--radius:14px; }
-    @media (prefers-color-scheme: light){ :root{--bg:#f7f7f7;--card:#fff;--text:#111;--muted:#666;--row:#f3f3f3} }
+    /* ====== Design Tokens ====== */
+    :root{
+      --bg0:#0b0b0f; --bg1:#12121a; --card:rgba(255,255,255,.06); --card-border:rgba(255,255,255,.14);
+      --text:#f4f6fb; --muted:#aab1c7; --primary:#4da3ff; --primary-2:#7cc7ff; --accent:#00ffd1;
+      --danger:#c92736; --danger-2:#ff5364; --row:rgba(255,255,255,.06);
+      --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg0:#f4f7fb; --bg1:#eaf1ff; --card:rgba(255,255,255,.85); --card-border:rgba(0,0,0,.1);
+        --text:#0e1320; --muted:#5b6a86; --row:rgba(0,0,0,.04);
+      }
+    }
+
+    /* ====== Base ====== */
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:16px}
-    .wrap{max-width:1100px;margin:0 auto}
-    h1{font-size:1.4rem;margin:4px 2px 12px}
-    .card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.08);margin-bottom:12px}
+    body{
+      margin:0; color:var(--text);
+      background: radial-gradient(1200px 800px at 20% -10%, #1f2147 0%, transparent 60%),
+                  radial-gradient(900px 600px at 110% 10%, #0b5dd8 0%, transparent 55%),
+                  linear-gradient(160deg, var(--bg0), var(--bg1));
+      min-height:100svh; font-family:-apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      padding:18px; transition:background .25s ease,color .25s ease;
+    }
+    .wrap{max-width:1160px;margin:0 auto}
+    h1{
+      font-size:1.6rem;margin:6px 4px 14px;letter-spacing:.2px;
+      background:linear-gradient(90deg,var(--primary),var(--accent));
+      -webkit-background-clip:text;background-clip:text;color:transparent
+    }
+
+    /* ====== Cards / Inputs ====== */
+    .card{
+      background:var(--card); backdrop-filter:saturate(140%) blur(10px);
+      border:1px solid var(--card-border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:14px;
+    }
     label{display:flex;align-items:center;gap:8px;margin:6px 8px 6px 0;flex-wrap:wrap}
-    input,select,button{font-size:1rem;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:#111;color:var(--text)}
-    @media (prefers-color-scheme: light){input,select,button{background:#fff;color:var(--text);border:1px solid rgba(0,0,0,.14)}}
+    input,select,button{
+      font-size:1rem; padding:11px 12px; border-radius:12px;
+      border:1px solid var(--card-border); background:rgba(10,12,18,.6); color:var(--text); outline:none;
+      transition:transform .06s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+    }
+    input:focus,select:focus{box-shadow:0 0 0 3px rgba(77,163,255,.25); border-color:var(--primary)}
+    @media (prefers-color-scheme: light){
+      input,select,button{background:#fff}
+    }
     button{cursor:pointer;min-height:40px}
-    .btn{background:var(--primary);color:#fff;border:none}
+    .btn{
+      background:linear-gradient(180deg,var(--primary),var(--primary-2));
+      color:#00142a;border:none; font-weight:700;
+      box-shadow:0 8px 22px rgba(77,163,255,.35);
+    }
+    .btn:hover{filter:brightness(1.05)}
+    .btn:active{transform:translateY(1px)}
     .btn-ghost{background:transparent;color:var(--text)}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
     .muted{color:var(--muted)}
-    .prom{font-size:1.8rem;font-weight:800;margin:8px 2px 6px}
-    .warn{background:#8b1c1c;color:#fff;padding:10px;border-radius:12px;margin:8px 0;display:none}
-    table{width:100%;border-collapse:separate;border-spacing:0 8px}
-    thead th{font-weight:600;text-align:left;padding:6px 8px;opacity:.85}
-    tbody tr{background:var(--row);border-radius:12px}
-    tbody td{padding:8px 10px;vertical-align:middle}
+
+    .prom{font-size:2rem;font-weight:800;margin:10px 2px 6px}
+    .warn{
+      background:linear-gradient(180deg, rgba(255,83,100,.25), rgba(201,39,54,.35));
+      color:#fff;border:1px solid rgba(255,83,100,.5); padding:12px;border-radius:12px;margin:8px 0;display:none
+    }
+
+    /* ====== Table ====== */
+    table{width:100%;border-collapse:separate;border-spacing:0 10px}
+    thead th{font-weight:700;text-align:left;padding:6px 10px;opacity:.9}
+    tbody tr{background:var(--row);border-radius:14px;transition:transform .06s ease, background .2s ease}
+    tbody tr:hover{transform:translateY(-1px); background:rgba(255,255,255,.09)}
+    tbody td{padding:10px 12px;vertical-align:middle}
     .hourhead{white-space:nowrap}
-    .chips{display:flex;gap:6px;flex-wrap:wrap}
-    .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent}
-    .sum,.bac{min-width:80px;text-align:right;font-variant-numeric:tabular-nums}
-    .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border-radius:999px;padding:4px 8px;margin:4px 6px 0 0}
-    .pill select{padding:4px 8px;border-radius:8px}
-    .pill button{min-height:auto;padding:4px 8px;border-radius:8px}
-    #err{position:fixed;left:8px;right:8px;bottom:8px;background:#400;padding:10px 12px;border:1px solid #f88;color:#fff;border-radius:10px;display:none;z-index:9999;font-size:14px;white-space:pre-wrap}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{
+      padding:8px 12px;border-radius:999px;border:1px solid var(--card-border);background:rgba(255,255,255,.05);
+      transition:transform .05s ease, background .15s ease
+    }
+    .chip:hover{background:rgba(255,255,255,.12)}
+    .chip:active{transform:translateY(1px)}
+    .sum,.bac{min-width:90px;text-align:right;font-variant-numeric:tabular-nums}
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      background:rgba(255,255,255,.08);border:1px solid var(--card-border);
+      border-radius:999px;padding:6px 8px;margin:4px 8px 0 0
+    }
+    .pill select{padding:6px 8px;border-radius:8px}
+    .pill button{min-height:auto;padding:6px 8px;border-radius:8px}
+
+    /* ====== Mantra Overlay (ab 0,8‰) ====== */
+    #mantra{
+      position:sticky; top:10px; z-index:10;
+      display:none; align-items:center; justify-content:center; text-align:center;
+      margin-bottom:12px;
+    }
+    #mantra .bubble{
+      width:100%;
+      background:linear-gradient(180deg, rgba(255,70,70,.92), rgba(180,10,10,.92));
+      color:#fff; border:2px solid rgba(255,255,255,.25);
+      border-radius:18px; padding:14px; box-shadow:0 12px 26px rgba(255,70,70,.35);
+      font-weight:800; letter-spacing:.2px
+    }
+
+    /* ====== Danger Mode (>= 0,8‰) – roter Hintergrund ====== */
+    body.danger{
+      background:
+        radial-gradient(1200px 800px at 10% -10%, rgba(255,80,80,.35) 0%, transparent 60%),
+        radial-gradient(900px 600px at 110% 10%, rgba(255,40,40,.35) 0%, transparent 55%),
+        linear-gradient(160deg, #3a0f12, #1f0003);
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Promille Rechner – Stunden-Tabelle (Bier/Radler) + Prediction</h1>
+
+    <!-- Mantra -->
+    <div id="mantra">
+      <div class="bubble">„Ich trinke, um den Moment zu leben – nicht, um ihn zu vergessen.“</div>
+    </div>
 
     <div class="card grid">
       <label>Gewicht
@@ -85,163 +169,143 @@
     </div>
   </div>
 
-  <div id="err"></div>
+  <div id="err" style="display:none"></div>
 
 <script>
-/* Fehleranzeige (hilft bei GitHub Pages Debug) */
+/* Fehleranzeige (falls mal was crasht) */
 window.addEventListener('error', e => {
   const el = document.getElementById('err');
   el.style.display='block';
   el.textContent = 'JS-Fehler: ' + (e.message||'') + '\\n' + (e.filename||'') + ':' + (e.lineno||'') + ':' + (e.colno||'');
 });
 
-/* Zeit-Helfer (lokal, kein UTC-Drift) */
+/* Zeit-Helfer */
 function floorToHourLocal(d = new Date()){ const x = new Date(d); x.setMinutes(0,0,0); return x.getTime(); }
 function toDatetimeLocalValue(ms){ const d=new Date(ms),p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function fromDatetimeLocalValue(val){ const [YMD,HM]=val.split('T'); const [y,m,dd]=YMD.split('-').map(Number); const [h,mm]=HM.split(':').map(Number); return new Date(y,m-1,dd,h,mm,0,0).getTime(); }
 
 /* Konstanten */
-const DICHTE_ALK = 0.789; // g/cm³
-const VOL_BIER   = 0.05;  // 5 %
-const VOL_RADLER = 0.025; // 2.5 %
-const R_M = 0.68, R_F = 0.55;
-const NF3 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:3,maximumFractionDigits:3});
-const NF2 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
-const NF1 = new Intl.NumberFormat('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
+const DICHTE_ALK=0.789, VOL_BIER=0.05, VOL_RADLER=0.025, R_M=0.68, R_F=0.55;
+const NF3=new Intl.NumberFormat('de-DE',{minimumFractionDigits:3,maximumFractionDigits:3});
+const NF2=new Intl.NumberFormat('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const NF1=new Intl.NumberFormat('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});
 
-/* State + Persistenz */
-let model = { gewicht:70, geschlecht:'m', abbau:0.12, startMs:null, hours:[] }; // hours: [{startMs,drinks:[{id,ty,volL}]}]
-try{ const saved = JSON.parse(localStorage.getItem('prs_hours_table_predict')||'null'); if(saved && saved.hours) model = saved; }catch{}
-function save(){ localStorage.setItem('prs_hours_table_predict', JSON.stringify(model)); }
+/* State */
+let model={gewicht:70,geschlecht:'m',abbau:0.12,startMs:null,hours:[]};
+try{const saved=JSON.parse(localStorage.getItem('prs_hours_table_predict_pretty')||'null'); if(saved && saved.hours) model=saved;}catch{}
+function save(){localStorage.setItem('prs_hours_table_predict_pretty',JSON.stringify(model));}
 
 /* Stundenaufbau */
-function ensureStart(){ if(!model.startMs){ model.startMs = floorToHourLocal(); } }
+function ensureStart(){ if(!model.startMs){ model.startMs=floorToHourLocal(); } }
 function buildHoursUntilNow(){
   ensureStart();
-  const hours=[]; let cur = model.startMs; const now = Date.now();
-  while (cur <= now){
-    const existing = model.hours.find(h => h.startMs === cur);
-    hours.push(existing || { startMs:cur, drinks:[] });
-    const d = new Date(cur); d.setHours(d.getHours()+1,0,0,0); cur = d.getTime();
+  const hours=[]; let cur=model.startMs; const now=Date.now();
+  while(cur<=now){
+    const existing=model.hours.find(h=>h.startMs===cur);
+    hours.push(existing||{startMs:cur,drinks:[]});
+    const d=new Date(cur); d.setHours(d.getHours()+1,0,0,0); cur=d.getTime();
   }
-  model.hours = hours; save();
+  model.hours=hours; save();
 }
 
-/* Rechenhilfen */
-function alkoholGramm(liter, vol){ return liter * vol * 1000 * DICHTE_ALK; }
+/* Rechnen */
+function alkoholGramm(l,vol){return l*vol*1000*DICHTE_ALK;}
 function sumsForHour(h){
-  let bier=0, radler=0;
-  (h.drinks||[]).forEach(d => { if(d.ty==='bier') bier+=d.volL; else radler+=d.volL; });
-  const grams = alkoholGramm(bier, VOL_BIER) + alkoholGramm(radler, VOL_RADLER);
-  return {bier, radler, grams};
+  let bier=0,radler=0;
+  (h.drinks||[]).forEach(d=>{ if(d.ty==='bier') bier+=d.volL; else radler+=d.volL; });
+  const grams=alkoholGramm(bier,VOL_BIER)+alkoholGramm(radler,VOL_RADLER);
+  return {bier,radler,grams};
 }
-
-/* BAC-Serie: für jede Stunde (vergangen/aktuell/zukünftig) den Wert am Ende der Stunde
-   plus für die aktuelle Stunde zusätzlich den Live-Wert „jetzt“. */
 function computeBACSeries(){
-  const kg = model.gewicht||70;
-  const r  = model.geschlecht==='w'? R_F : R_M;
-  const ab = model.abbau||0.12; // ‰/h
-  const now = Date.now();
+  const kg=model.gewicht||70, r=model.geschlecht==='w'?R_F:R_M, ab=model.abbau||0.12, now=Date.now();
+  let prom=0, rows=[];
+  for(let i=0;i<model.hours.length;i++){
+    const h=model.hours[i], start=h.startMs, end=new Date(start).setHours(new Date(start).getHours()+1);
+    const {bier,radler,grams}=sumsForHour(h);
+    prom += grams/(kg*r);
 
-  let prom = 0; // Start-Promille vor erster Stunde
-  const rows = [];
-
-  for (let i=0;i<model.hours.length;i++){
-    const h = model.hours[i];
-    const start = h.startMs;
-    const end   = new Date(start).setHours(new Date(start).getHours()+1);
-
-    // Intake der Stunde
-    const {bier,radler,grams} = sumsForHour(h);
-    prom += grams / (kg * r);
-
-    if (now >= end){
-      // Vergangenheit: tatsächlicher Endwert
-      prom = Math.max(0, prom - ab);
-      rows.push({ idx:i, now:null, end:prom, past:true });
+    if(now>=end){
+      prom=Math.max(0,prom-ab);
+      rows.push({idx:i,now:null,end:prom,past:true});
       continue;
     }
-
-    if (now >= start && now < end){
-      const frac = (now - start)/3600000;
-      const nowVal = Math.max(0, prom - ab*frac);
-      const endVal = Math.max(0, prom - ab);      // Prognose: Ende dieser Stunde
-      rows.push({ idx:i, now:nowVal, end:endVal, past:false, current:true });
-      // Für weitere (zukünftige) Stunden nehmen wir als Ausgangsbasis den prognostizierten Endwert
-      prom = endVal;
+    if(now>=start && now<end){
+      const frac=(now-start)/3600000;
+      const nowVal=Math.max(0,prom-ab*frac);
+      const endVal=Math.max(0,prom-ab);
+      rows.push({idx:i,now:nowVal,end:endVal,current:true});
+      prom=endVal;
       continue;
     }
-
-    // Zukunft: Prognose Ende der Stunde
-    const endVal = Math.max(0, prom - ab);
-    rows.push({ idx:i, now:null, end:endVal, past:false, future:true });
-    prom = endVal;
+    const endVal=Math.max(0,prom-ab);
+    rows.push({idx:i,now:null,end:endVal,future:true});
+    prom=endVal;
   }
   return rows;
 }
-
-/* DOM refs */
-const elGew = document.getElementById('gewicht');
-const elSex = document.getElementById('geschlecht');
-const elAbbau = document.getElementById('abbau');
-const elStart = document.getElementById('start');
-const elBody = document.getElementById('tbody');
-const elProm = document.getElementById('anzeige');
-const elEta  = document.getElementById('eta');
-const elWarn = document.getElementById('warn');
-
-/* Events (statisch) */
-elGew.addEventListener('change', ()=>{ model.gewicht = clamp(+elGew.value,40,200); save(); recalc(); });
-elSex.addEventListener('change', ()=>{ model.geschlecht = elSex.value; save(); recalc(); });
-elAbbau.addEventListener('change', ()=>{ model.abbau = clamp(+elAbbau.value,0.05,0.2); save(); recalc(); });
-elStart.addEventListener('change', ()=>{ model.startMs = fromDatetimeLocalValue(elStart.value); save(); buildHoursUntilNow(); renderTable(); recalc(); });
-document.getElementById('addHour').addEventListener('click', ()=>{ addHourAtEnd(); renderTable(); recalc(); });
-document.getElementById('resetData').addEventListener('click', ()=>{ if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_table_predict'); location.reload(); } });
-
-/* Event-Delegation für dynamische Buttons/Selects */
-elBody.addEventListener('click', (e)=>{
-  const btn = e.target.closest('button');
-  if(!btn) return;
-
-  if(btn.dataset.add){ // + Getränk
-    const i = +btn.dataset.i; const ty = btn.dataset.add; const vol = parseFloat(btn.dataset.vol);
-    const h = model.hours[i]; if(!h) return;
-    h.drinks.push({ id: uid(), ty, volL: vol });
-    save(); refreshRow(i); recalc(); return;
+function computeBACNow(){
+  const kg=model.gewicht||70, r=model.geschlecht==='w'?R_F:R_M, ab=model.abbau||0.12, now=Date.now();
+  let prom=0;
+  for(let i=0;i<model.hours.length;i++){
+    const h=model.hours[i], start=h.startMs, end=new Date(start).setHours(new Date(start).getHours()+1);
+    const {bier,radler}=sumsForHour(h);
+    prom += alkoholGramm(bier,VOL_BIER)/(kg*r) + alkoholGramm(radler,VOL_RADLER)/(kg*r);
+    if(now>=start && now<end){ prom=Math.max(0,prom - ab*((now-start)/3600000)); break; }
+    if(now>=end){ prom=Math.max(0,prom-ab); }
   }
-  if(btn.dataset.del){ // Eintrag löschen
-    const i = +btn.dataset.i; const id = btn.dataset.del;
-    const h = model.hours[i]; if(!h) return;
-    h.drinks = (h.drinks||[]).filter(d => d.id !== id);
-    save(); refreshRow(i); recalc(); return;
+  return Math.max(0,prom);
+}
+
+/* DOM */
+const elGew=document.getElementById('gewicht');
+const elSex=document.getElementById('geschlecht');
+const elAbbau=document.getElementById('abbau');
+const elStart=document.getElementById('start');
+const elBody=document.getElementById('tbody');
+const elProm=document.getElementById('anzeige');
+const elEta=document.getElementById('eta');
+const elWarn=document.getElementById('warn');
+const elMantra=document.getElementById('mantra');
+
+elGew.addEventListener('change',()=>{model.gewicht=clamp(+elGew.value,40,200); save(); recalc();});
+elSex.addEventListener('change',()=>{model.geschlecht=elSex.value; save(); recalc();});
+elAbbau.addEventListener('change',()=>{model.abbau=clamp(+elAbbau.value,0.05,0.2); save(); recalc();});
+elStart.addEventListener('change',()=>{model.startMs=fromDatetimeLocalValue(elStart.value); save(); buildHoursUntilNow(); renderTable(); recalc();});
+document.getElementById('addHour').addEventListener('click',()=>{ addHourAtEnd(); renderTable(); recalc();});
+document.getElementById('resetData').addEventListener('click',()=>{ if(confirm('Alle Eingaben löschen?')){ localStorage.removeItem('prs_hours_table_predict_pretty'); location.reload(); } });
+
+/* Delegation */
+elBody.addEventListener('click',(e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  if(btn.dataset.add){
+    const i=+btn.dataset.i, ty=btn.dataset.add, vol=parseFloat(btn.dataset.vol); const h=model.hours[i]; if(!h) return;
+    h.drinks.push({id:uid(),ty,volL:vol}); save(); refreshRow(i); recalc(); return;
   }
-  if(btn.dataset.delh){ // Stunde löschen
-    const i = +btn.dataset.delh;
-    model.hours.splice(i,1); save(); renderTable(); recalc(); return;
+  if(btn.dataset.del){
+    const i=+btn.dataset.i, id=btn.dataset.del; const h=model.hours[i]; if(!h) return;
+    h.drinks=(h.drinks||[]).filter(d=>d.id!==id); save(); refreshRow(i); recalc(); return;
+  }
+  if(btn.dataset.delh){
+    const i=+btn.dataset.delh; model.hours.splice(i,1); save(); renderTable(); recalc(); return;
   }
 });
-elBody.addEventListener('change', (e)=>{
-  const sel = e.target.closest('select');
-  if(!sel || !sel.dataset.edit) return;
-  const i = +sel.dataset.i; const id = sel.dataset.edit;
-  const h = model.hours[i]; if(!h) return;
-  const d = (h.drinks||[]).find(x => x.id === id); if(!d) return;
-  d.volL = parseFloat(sel.value);
-  save(); refreshRow(i); recalc();
+elBody.addEventListener('change',(e)=>{
+  const sel=e.target.closest('select'); if(!sel || !sel.dataset.edit) return;
+  const i=+sel.dataset.i, id=sel.dataset.edit; const h=model.hours[i]; if(!h) return;
+  const d=(h.drinks||[]).find(x=>x.id===id); if(!d) return;
+  d.volL=parseFloat(sel.value); save(); refreshRow(i); recalc();
 });
 
 /* Render */
 function renderTable(){
   elBody.innerHTML='';
-  const series = computeBACSeries(); // für Prediction-Spalten
-  model.hours.forEach((h, idx)=>{
-    const d = new Date(h.startMs);
-    const {bier,radler,grams} = sumsForHour(h);
-    const sRow = series.find(r => r.idx===idx) || {now:null,end:null};
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+  const series=computeBACSeries();
+  model.hours.forEach((h,idx)=>{
+    const d=new Date(h.startMs);
+    const {bier,radler,grams}=sumsForHour(h);
+    const sRow=series.find(r=>r.idx===idx)||{now:null,end:null};
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
       <td class="hourhead">${d.toLocaleString('de-DE',{weekday:'short', hour:'2-digit'})} Uhr</td>
       <td>
         <div class="chips">
@@ -260,8 +324,8 @@ function renderTable(){
       <td class="sum" id="sb${idx}">${bier.toFixed(1).replace('.',',')}</td>
       <td class="sum" id="sr${idx}">${radler.toFixed(1).replace('.',',')}</td>
       <td class="sum" id="sg${idx}">${NF1.format(grams)}</td>
-      <td class="bac" id="bnow${idx}">${sRow.now!=null ? NF2.format(sRow.now)+'‰' : '–'}</td>
-      <td class="bac" id="bend${idx}">${sRow.end!=null ? NF2.format(sRow.end)+'‰' : '–'}</td>
+      <td class="bac" id="bnow${idx}">${sRow.now!=null? NF2.format(sRow.now)+'‰':'–'}</td>
+      <td class="bac" id="bend${idx}">${sRow.end!=null? NF2.format(sRow.end)+'‰':'–'}</td>
       <td id="list${idx}"></td>
       <td><button class="btn-ghost" data-delh="${idx}" type="button">Stunde löschen</button></td>
     `;
@@ -270,14 +334,13 @@ function renderTable(){
   });
 }
 function renderPills(i){
-  const h = model.hours[i]; const box = document.getElementById('list'+i);
-  box.innerHTML='';
-  if(!h.drinks || !h.drinks.length){ box.innerHTML = '<span class="muted">–</span>'; return; }
+  const h=model.hours[i], box=document.getElementById('list'+i);
+  box.innerHTML=''; if(!h.drinks || !h.drinks.length){ box.innerHTML='<span class="muted">–</span>'; return; }
   h.drinks.forEach(d=>{
-    const pill = document.createElement('span'); pill.className='pill';
-    const typeLabel = d.ty==='bier'?'Bier':'Radler';
-    pill.innerHTML = `
-      <span>${typeLabel}</span>
+    const pill=document.createElement('span'); pill.className='pill';
+    const tl=d.ty==='bier'?'Bier':'Radler';
+    pill.innerHTML=`
+      <span>${tl}</span>
       <select data-edit="${d.id}" data-i="${i}">
         <option value="0.3"${d.volL===0.3?' selected':''}>0,3 L</option>
         <option value="0.4"${d.volL===0.4?' selected':''}>0,4 L</option>
@@ -289,85 +352,52 @@ function renderPills(i){
   });
 }
 function refreshRow(i){
-  const h = model.hours[i];
-  const {bier,radler,grams} = sumsForHour(h);
-  const sb = document.getElementById('sb'+i);
-  const sr = document.getElementById('sr'+i);
-  const sg = document.getElementById('sg'+i);
-  if(sb) sb.textContent = bier.toFixed(1).replace('.',',');
-  if(sr) sr.textContent = radler.toFixed(1).replace('.',',');
-  if(sg) sg.textContent = NF1.format(grams);
-
-  // BAC cells aktualisieren
-  const sRow = computeBACSeries().find(r => r.idx===i);
-  const bnow = document.getElementById('bnow'+i);
-  const bend = document.getElementById('bend'+i);
-  if(bnow) bnow.textContent = sRow && sRow.now!=null ? NF2.format(sRow.now)+'‰' : '–';
-  if(bend) bend.textContent = sRow && sRow.end!=null ? NF2.format(sRow.end)+'‰' : '–';
-
+  const h=model.hours[i]; const {bier,radler,grams}=sumsForHour(h);
+  const sb=document.getElementById('sb'+i), sr=document.getElementById('sr'+i), sg=document.getElementById('sg'+i);
+  if(sb) sb.textContent=bier.toFixed(1).replace('.',',');
+  if(sr) sr.textContent=radler.toFixed(1).replace('.',',');
+  if(sg) sg.textContent=NF1.format(grams);
+  const sRow=computeBACSeries().find(r=>r.idx===i);
+  const bnow=document.getElementById('bnow'+i), bend=document.getElementById('bend'+i);
+  if(bnow) bnow.textContent=sRow&&sRow.now!=null? NF2.format(sRow.now)+'‰':'–';
+  if(bend) bend.textContent=sRow&&sRow.end!=null? NF2.format(sRow.end)+'‰':'–';
   renderPills(i);
 }
 
-/* Stunde anhängen */
+/* Stunden Tools */
 function addHourAtEnd(){
-  const last = model.hours[model.hours.length-1];
-  const base = last ? last.startMs : model.startMs;
-  const d = new Date(base); d.setHours(d.getHours()+1,0,0,0);
-  model.hours.push({ startMs:d.getTime(), drinks:[] });
-  save();
+  const last=model.hours[model.hours.length-1];
+  const base=last? last.startMs : model.startMs;
+  const d=new Date(base); d.setHours(d.getHours()+1,0,0,0);
+  model.hours.push({startMs:d.getTime(),drinks:[]}); save();
 }
 
-/* Live-BAC (separat für Header) */
-function computeBACNow(){
-  const kg = model.gewicht||70;
-  const r  = model.geschlecht==='w'? R_F : R_M;
-  const ab = model.abbau||0.12; // ‰/h
-  const now = Date.now();
-  let prom = 0;
-
-  for(let i=0;i<model.hours.length;i++){
-    const h = model.hours[i];
-    const start = h.startMs;
-    const end   = new Date(start).setHours(new Date(start).getHours()+1);
-    const {bier,radler} = sumsForHour(h);
-    const grams = alkoholGramm(bier, VOL_BIER) + alkoholGramm(radler, VOL_RADLER);
-    prom += grams / (kg * r);
-
-    if (now >= start && now < end){
-      const frac = (now - start)/3600000;
-      prom = Math.max(0, prom - ab*frac);
-      break;
-    }
-    if (now >= end){
-      prom = Math.max(0, prom - ab);
-    }
-  }
-  return Math.max(0, prom);
-}
-
-/* Anzeige */
+/* Anzeige + Danger Mode + Mantra */
 function recalc(){
-  document.getElementById('gewicht').value = model.gewicht;
-  document.getElementById('geschlecht').value = model.geschlecht;
-  document.getElementById('abbau').value = model.abbau;
-  document.getElementById('start').value = toDatetimeLocalValue(model.startMs);
+  document.getElementById('gewicht').value=model.gewicht;
+  document.getElementById('geschlecht').value=model.geschlecht;
+  document.getElementById('abbau').value=model.abbau;
+  document.getElementById('start').value=toDatetimeLocalValue(model.startMs);
 
-  const p = computeBACNow();
-  elProm.textContent = `Aktuelle Promille: ${NF3.format(p)}‰`;
-  elWarn.style.display = p >= 0.5 ? 'block' : 'none';
+  const p=computeBACNow();
+  elProm.textContent=`Aktuelle Promille: ${NF3.format(p)}‰`;
+  elWarn.style.display = p>=0.5 ? 'block' : 'none';
 
-  const ab = model.abbau||0.12;
-  const eta05 = p>0.5? (p-0.5)/ab : null;
-  const eta00 = p/ab;
-  elEta.textContent = `Unter 0,5‰ in ${eta05!==null? NF1.format(eta05)+' h' : '–'} · 0,0‰ in ${NF1.format(eta00)} h`;
+  // Danger: ab 0,8‰
+  document.body.classList.toggle('danger', p>=0.8);
+  elMantra.style.display = p>=0.8 ? 'flex' : 'none';
 
-  // ganze Tabelle neu (damit Prediction-Zellen mitlaufen)
-  renderTable();
+  const ab=model.abbau||0.12;
+  const eta05=p>0.5? (p-0.5)/ab : null;
+  const eta00=p/ab;
+  elEta.textContent=`Unter 0,5‰ in ${eta05!==null? NF1.format(eta05)+' h' : '–'} · 0,0‰ in ${NF1.format(eta00)} h`;
+
+  renderTable(); // Prediction-Spalten mitziehen
 }
 
 /* Utils */
-function clamp(v,min,max){ return isFinite(v)? Math.max(min,Math.min(max,v)) : min; }
-function uid(){ return (crypto?.randomUUID?.() || ('id-'+Math.random().toString(36).slice(2)+Date.now().toString(36))); }
+function clamp(v,min,max){return isFinite(v)? Math.max(min,Math.min(max,v)) : min;}
+function uid(){return (crypto?.randomUUID?.() || ('id-'+Math.random().toString(36).slice(2)+Date.now().toString(36)));}
 
 /* Init */
 (function init(){
@@ -375,7 +405,7 @@ function uid(){ return (crypto?.randomUUID?.() || ('id-'+Math.random().toString(
   buildHoursUntilNow();
   renderTable();
   recalc();
-  setInterval(()=>{ buildHoursUntilNow(); recalc(); }, 60000); // minütlich: Progress/Prediction aktualisieren
+  setInterval(()=>{ buildHoursUntilNow(); recalc(); }, 60000);
 })();
 </script>
 </body>
